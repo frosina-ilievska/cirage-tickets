@@ -1,0 +1,95 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedTickets Ticket[]   @relation("AssignedTo")
+  createdTickets  Ticket[]   @relation("CreatedBy")
+  comments        Comment[]
+  activities      Activity[]
+}
+
+model Category {
+  id      String   @id @default(cuid())
+  name    String   @unique
+  color   String   @default("#6366f1")
+  tickets Ticket[]
+}
+
+model Ticket {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("OPEN")
+  priority    String    @default("NORMAL")
+  dueDate     DateTime?
+  driveLink   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  assigneeId String?
+  assignee   User?     @relation("AssignedTo", fields: [assigneeId], references: [id])
+
+  createdById String
+  createdBy   User      @relation("CreatedBy", fields: [createdById], references: [id])
+
+  comments    Comment[]
+  activities  Activity[]
+  attachments Attachment[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId    String
+  author      User         @relation(fields: [authorId], references: [id])
+  attachments Attachment[]
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  action    String
+  createdAt DateTime @default(now())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  fileType  String   @default("file")
+  createdAt DateTime @default(now())
+
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+}
