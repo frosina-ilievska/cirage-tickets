@@ -14,8 +14,10 @@ model User {
   name      String
   password  String
   role      String   @default("MEMBER")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
 
   assignedTickets Ticket[]   @relation("AssignedTo")
   createdTickets  Ticket[]   @relation("CreatedBy")
@@ -91,5 +93,4 @@ model Attachment {
   ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   commentId String?
-  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-}
+  comment   Comment? @relation(fields: [
