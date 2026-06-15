@@ -59,6 +59,18 @@ export default function AdminPage() {
     if (res.ok) setUsers((prev) => prev.filter((u) => u.id !== id));
   }
 
+  async function handleRoleChange(id: string, role: string) {
+    const res = await fetch("/api/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, role }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+    }
+  }
+
   async function handleAddCategory(e: React.FormEvent) {
     e.preventDefault();
     setCatError("");
@@ -110,10 +122,16 @@ export default function AdminPage() {
                       <p className="text-sm font-medium text-gray-900">{user.name}</p>
                       <p className="text-xs text-gray-400">{user.email}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                        {ROLE_LABELS[user.role] || user.role}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={user.role}
+                        onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                        className="text-xs border border-gray-200 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="MEMBER">Member</option>
+                        <option value="DESIGNER">Designer</option>
+                        <option value="ADMIN">Admin</option>
+                      </select>
                       <button
                         onClick={() => handleDeleteUser(user.id)}
                         className="text-xs text-red-400 hover:text-red-600"
@@ -216,25 +234,4 @@ export default function AdminPage() {
                 <input
                   type="color"
                   value={newCat.color}
-                  onChange={(e) => setNewCat((f) => ({ ...f, color: e.target.value }))}
-                  className="w-10 h-8 border border-gray-200 rounded cursor-pointer"
-                />
-                <span className="text-sm text-gray-400">{newCat.color}</span>
-              </div>
-
-              {catError && <p className="text-sm text-red-600">{catError}</p>}
-
-              <button
-                type="submit"
-                disabled={addingCat}
-                className="w-full bg-gray-900 text-white text-sm py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
-              >
-                {addingCat ? "Adding..." : "Add Category"}
-              </button>
-            </form>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
+                  onChange={(e) => set

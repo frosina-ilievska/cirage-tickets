@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const categoryId = searchParams.get("categoryId");
   const assigneeId = searchParams.get("assigneeId");
   const createdById = searchParams.get("createdById");
+  const search = searchParams.get("search");
 
   const role = session.user.role;
   const userId = session.user.id;
@@ -41,6 +42,20 @@ export async function GET(req: NextRequest) {
   if (categoryId) whereClause.categoryId = categoryId;
   if (assigneeId) whereClause.assigneeId = assigneeId;
   if (createdById) whereClause.createdById = createdById;
+  if (search) {
+    const searchFilter = {
+      OR: [
+        { title: { contains: search, mode: "insensitive" as const } },
+        { description: { contains: search, mode: "insensitive" as const } },
+      ],
+    };
+    // Merge search into existing OR clause if present, otherwise add it
+    if (whereClause.OR) {
+      whereClause = { AND: [{ OR: whereClause.OR }, searchFilter] };
+    } else {
+      Object.assign(whereClause, searchFilter);
+    }
+  }
 
   const tickets = await prisma.ticket.findMany({
     where: whereClause,
@@ -93,19 +108,4 @@ export async function POST(req: NextRequest) {
     data: {
       action: "created this ticket",
       ticketId: ticket.id,
-      userId: session.user.id,
-    },
-  });
-
-  // Email notification if assigned
-  if (assigneeId && assigneeId !== session.user.id) {
-    const assignee = await prisma.user.findUnique({ where: { id: assigneeId } });
-    if (assignee) {
-      const { sendEmail, assignedEmail } = await import("@/lib/email");
-      const emailData = assignedEmail(title, ticket.id, assignee.name);
-      await sendEmail({ to: assignee.email, ...emailData });
-    }
-  }
-
-  return NextResponse.json(ticket, { status: 201 });
-}
+     

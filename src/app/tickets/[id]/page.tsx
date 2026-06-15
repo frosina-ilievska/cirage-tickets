@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -29,6 +29,93 @@ type Ticket = {
 };
 
 type User = { id: string; name: string; role: string };
+
+function EditableTitle({ value, canEdit, onSave }: { value: string; canEdit: boolean; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) onSave(trimmed);
+    else setDraft(value);
+    setEditing(false);
+  }
+
+  if (!canEdit) return <h1 className="text-lg font-semibold text-gray-900 flex-1">{value}</h1>;
+
+  return editing ? (
+    <input
+      ref={inputRef}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
+      className="flex-1 text-lg font-semibold text-gray-900 border-b-2 border-indigo-500 outline-none bg-transparent"
+    />
+  ) : (
+    <h1
+      className="text-lg font-semibold text-gray-900 flex-1 cursor-text hover:text-indigo-700 transition-colors group"
+      onClick={() => { setDraft(value); setEditing(true); }}
+      title="Click to edit title"
+    >
+      {value}
+      <span className="ml-2 text-xs text-gray-300 group-hover:text-indigo-400 font-normal">✎</span>
+    </h1>
+  );
+}
+
+function EditableDescription({ value, canEdit, onSave }: { value: string | null; canEdit: boolean; onSave: (v: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { if (editing) textareaRef.current?.focus(); }, [editing]);
+
+  function commit() {
+    const trimmed = draft.trim() || null;
+    if (trimmed !== value) onSave(trimmed);
+    setEditing(false);
+  }
+
+  if (!canEdit) {
+    return value ? (
+      <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap leading-relaxed">{value}</p>
+    ) : null;
+  }
+
+  return editing ? (
+    <div className="mt-3">
+      <textarea
+        ref={textareaRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Escape") { setDraft(value ?? ""); setEditing(false); } }}
+        rows={4}
+        placeholder="Add a description…"
+        className="w-full text-sm text-gray-600 border border-indigo-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+      />
+      <p className="text-xs text-gray-400 mt-1">Press Esc to cancel, click outside to save</p>
+    </div>
+  ) : (
+    <div
+      className="mt-3 cursor-text group"
+      onClick={() => { setDraft(value ?? ""); setEditing(true); }}
+    >
+      {value ? (
+        <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed group-hover:text-gray-800">
+          {value}
+          <span className="ml-2 text-xs text-gray-300 group-hover:text-indigo-400">✎</span>
+        </p>
+      ) : (
+        <p className="text-sm text-gray-300 italic group-hover:text-indigo-400">Click to add a description…</p>
+      )}
+    </div>
+  );
+}
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,8 +155,6 @@ export default function TicketDetailPage() {
       body: JSON.stringify({ [field]: value }),
     });
     if (res.ok) {
-      const updated = await res.json();
-      // Reload to get fresh activities
       const full = await fetch(`/api/tickets/${id}`).then((r) => r.json());
       setTicket(full);
     }
@@ -114,7 +199,7 @@ export default function TicketDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
-        <div className="flex items-center justify-center h-64 text-sm text-gray-400">Loading...</div>
+        <div className="flex items-center justify-center h-64 text-sm text-gray-400">Loading…</div>
       </div>
     );
   }
@@ -135,7 +220,7 @@ export default function TicketDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Breadcrumb */}
         <div className="mb-4">
           <Link href="/tickets" className="text-sm text-gray-400 hover:text-gray-600">← Tickets</Link>
@@ -143,34 +228,40 @@ export default function TicketDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: main content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Title & status bar */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            {/* Title & description */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6">
               <div className="flex items-start justify-between gap-4">
-                <h1 className="text-lg font-semibold text-gray-900 flex-1">{ticket.title}</h1>
-                <div className="flex items-center gap-2">
+                <EditableTitle
+                  value={ticket.title}
+                  canEdit={canEdit}
+                  onSave={(v) => updateField("title", v)}
+                />
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {canClaim && (
                     <button
                       onClick={handleClaim}
                       disabled={claiming}
                       className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                     >
-                      {claiming ? "Claiming..." : "Claim Ticket"}
+                      {claiming ? "Claiming…" : "Claim"}
                     </button>
                   )}
                   {isAdmin && (
-                    <button onClick={handleDelete} className="text-sm text-red-500 hover:text-red-700">Delete</button>
+                    <button onClick={handleDelete} className="text-sm text-red-400 hover:text-red-600">Delete</button>
                   )}
                 </div>
               </div>
 
-              {ticket.description && (
-                <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap leading-relaxed">{ticket.description}</p>
-              )}
+              <EditableDescription
+                value={ticket.description}
+                canEdit={canEdit}
+                onSave={(v) => updateField("description", v)}
+              />
 
-              {/* Status change */}
+              {/* Status buttons */}
               {canEdit && (
-                <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
                   <span className="text-xs text-gray-400 self-center mr-1">Status:</span>
                   {STATUS_OPTIONS.map((s) => (
                     <button
@@ -191,7 +282,7 @@ export default function TicketDetailPage() {
             </div>
 
             {/* Attachments */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6">
               <h3 className="text-sm font-semibold text-gray-900 mb-4">Attachments</h3>
 
               {ticket.attachments.filter((a) => !a.commentId).length > 0 && (
@@ -199,7 +290,7 @@ export default function TicketDetailPage() {
                   {ticket.attachments.filter((a) => !a.commentId).map((a) => (
                     a.fileType === "image" ? (
                       <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="block">
-                        <img src={a.url} alt={a.name} className="max-w-xs max-h-48 rounded-lg border border-gray-200 object-contain hover:opacity-90" />
+                        <img src={a.url} alt={a.name} className="max-w-full sm:max-w-xs max-h-48 rounded-lg border border-gray-200 object-contain hover:opacity-90" />
                       </a>
                     ) : (
                       <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-indigo-600 hover:underline">
@@ -211,45 +302,42 @@ export default function TicketDetailPage() {
               )}
 
               {ticket.driveLink && (
-                <a
-                  href={ticket.driveLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 text-sm text-indigo-600 hover:underline mb-4"
-                >
+                <a href={ticket.driveLink} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-indigo-600 hover:underline mb-4">
                   <span>🔗</span> External link (Drive/Dropbox)
                 </a>
               )}
 
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                  className="text-xs text-gray-500 file:mr-3 file:text-xs file:border file:border-gray-200 file:rounded file:px-2 file:py-1 file:bg-white"
-                />
-                {uploadFile && (
-                  <button
-                    onClick={handleUpload}
-                    disabled={uploading}
-                    className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 disabled:opacity-50"
-                  >
-                    {uploading ? "Uploading..." : "Upload"}
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-gray-400 mt-2">Max 5MB. For larger files, use the Drive/Dropbox link on the ticket.</p>
+              {canEdit && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="file"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    className="text-xs text-gray-500 file:mr-3 file:text-xs file:border file:border-gray-200 file:rounded file:px-2 file:py-1 file:bg-white"
+                  />
+                  {uploadFile && (
+                    <button
+                      onClick={handleUpload}
+                      disabled={uploading}
+                      className="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      {uploading ? "Uploading…" : "Upload"}
+                    </button>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-gray-400 mt-2">Max 5MB. For larger files, use the Drive/Dropbox link.</p>
             </div>
 
             {/* Comments */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6">
               <CommentSection ticketId={ticket.id} initialComments={ticket.comments} />
             </div>
           </div>
 
           {/* Right: metadata + activity */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Metadata card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 space-y-4">
               <h3 className="text-sm font-semibold text-gray-900">Details</h3>
 
               <Field label="Status"><StatusBadge status={ticket.status} /></Field>
@@ -262,83 +350,4 @@ export default function TicketDetailPage() {
                     disabled={saving}
                     className="text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
-                    {PRIORITY_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                ) : (
-                  <PriorityBadge priority={ticket.priority} />
-                )}
-              </Field>
-
-              <Field label="Category">
-                <span className="text-sm text-gray-700">
-                  {ticket.category ? (
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ticket.category.color }} />
-                      {ticket.category.name}
-                    </span>
-                  ) : "—"}
-                </span>
-              </Field>
-
-              <Field label="Assignee">
-                {canEdit ? (
-                  <select
-                    value={ticket.assignee?.id || ""}
-                    onChange={(e) => updateField("assigneeId", e.target.value || null)}
-                    disabled={saving}
-                    className="text-sm border border-gray-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Unassigned</option>
-                    {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
-                ) : (
-                  <span className="text-sm text-gray-700">{ticket.assignee?.name || "Unassigned"}</span>
-                )}
-              </Field>
-
-              <Field label="Due date">
-                {canEdit ? (
-                  <input
-                    type="date"
-                    value={ticket.dueDate ? format(new Date(ticket.dueDate), "yyyy-MM-dd") : ""}
-                    onChange={(e) => updateField("dueDate", e.target.value || null)}
-                    disabled={saving}
-                    className="text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                ) : (
-                  <span className={`text-sm ${isOverdue ? "text-red-600 font-medium" : "text-gray-700"}`}>
-                    {ticket.dueDate ? format(new Date(ticket.dueDate), "dd MMM yyyy") : "—"}
-                    {isOverdue ? " ⚠ Overdue" : ""}
-                  </span>
-                )}
-              </Field>
-
-              <Field label="Created by">
-                <span className="text-sm text-gray-700">{ticket.createdBy.name}</span>
-              </Field>
-
-              <Field label="Created">
-                <span className="text-sm text-gray-500">{format(new Date(ticket.createdAt), "dd MMM yyyy")}</span>
-              </Field>
-            </div>
-
-            {/* Activity feed */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Activity</h3>
-              <ActivityFeed activities={ticket.activities} />
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</span>
-      {children}
-    </div>
-  );
-}
+                    {

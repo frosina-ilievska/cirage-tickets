@@ -30,5 +30,4 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     },
   });
 
-  return NextResponse.json(comment, { status: 201 });
-}
+  // Email notifications for comment — notify assignee
